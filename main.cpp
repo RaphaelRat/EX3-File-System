@@ -13,7 +13,7 @@ void duplicate(std::string fsrc, std::string fdest)
     dst << src.rdbuf();
 }
 
-
+// initFs
 TEST(FsTest, init021005){
     initFs("fs2-10-5.bin.solucao", 2, 10, 5);
     ASSERT_EQ(printSha256("fs2-10-5.bin.solucao"),std::string("F7:71:A2:19:63:85:52:25:AF:50:89:31:D7:BD:57:9E:BC:5E:3D:A2:85:4F:FE:41:B8:63:1A:5B:18:3F:0E:85"));
@@ -29,6 +29,7 @@ TEST(FsTest, case3){
     ASSERT_EQ(printSha256("fs4-32-16.bin.solucao"),std::string("A2:71:21:00:D1:4C:10:94:C9:A0:0A:BD:03:E7:25:38:EA:3E:04:07:57:E4:02:87:5F:7D:1F:B7:35:6D:FE:E4"));
 }
 
+// addFile
 TEST(FsTest, case4){
     
     duplicate("fs-case4.bin", "fs-case4.bin.solucao");
@@ -37,6 +38,7 @@ TEST(FsTest, case4){
     ASSERT_EQ(printSha256("fs-case4.bin.solucao"),std::string("AA:29:B7:CF:09:B6:32:0E:6B:20:51:ED:FD:8E:40:FB:B0:A8:71:FA:8A:22:0A:06:F4:E1:E4:69:0A:C6:B2:77"));
 }
 
+// addDir
 TEST(FsTest, case5){
     duplicate("fs-case5.bin", "fs-case5.bin.solucao");
     
@@ -45,6 +47,7 @@ TEST(FsTest, case5){
     
 }
 
+// addFile
 TEST(FsTest, case6){
     duplicate("fs-case6.bin", "fs-case6.bin.solucao");
     
@@ -52,6 +55,7 @@ TEST(FsTest, case6){
     ASSERT_EQ(printSha256("fs-case6.bin.solucao"),std::string("C5:D5:15:D8:2F:09:15:49:D9:A2:B5:58:36:E7:DC:28:E5:C4:14:02:1D:03:0E:A8:4E:40:EE:76:BF:05:F0:C6"));
 }
 
+// remove e rename
 TEST(FsTest, case7){
     duplicate("fs-case7.bin", "fs-case7.bin.back");
 
@@ -70,6 +74,7 @@ TEST(FsTest, case8){
     rename("fs-case8.bin.back", "fs-case8.bin");
 }
 
+// move e rename
 TEST(FsTest, case9){
     duplicate("fs-case9.bin", "fs-case9.bin.back");
     
@@ -88,6 +93,7 @@ TEST(FsTest, case10){
     rename("fs-case10.bin.back", "fs-case10.bin");
 }
 
+// remove e rename
 TEST(FsTest, case11){
     duplicate("fs-case11.bin", "fs-case11.bin.back");
     
@@ -97,6 +103,7 @@ TEST(FsTest, case11){
     rename("fs-case11.bin.back", "fs-case11.bin");
 }
 
+// move e rename
 TEST(FsTest, case12){
     duplicate("fs-case12.bin", "fs-case12.bin.back");
     
