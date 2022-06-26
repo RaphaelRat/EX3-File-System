@@ -1,6 +1,10 @@
 # VSCode
 *.vscode
 
+# Test Files
+*.solucao
+*.back
+
 # Prerequisites
 *.d
 
