@@ -12,6 +12,8 @@
  */
 
 #include "fs.h"
+#include <string.h>
+#include <math.h>
 
 void initFs(std::string fsFileName, int blockSize, int numBlocks, int numInodes)
 {
@@ -65,6 +67,102 @@ void initFs(std::string fsFileName, int blockSize, int numBlocks, int numInodes)
  */
 void addFile(std::string fsFileName, std::string filePath, std::string fileContent)
 {
+    FILE *file = fopen(fsFileName.c_str(), "r+");
+
+    char blockSize, numBlocks, numInodes, tempValues[3];
+    size_t sizeOfChar = sizeof(char); // Size of a char
+
+    fread(&tempValues, sizeOfChar, 3, file);
+    blockSize = tempValues[0];
+    numBlocks = tempValues[1];
+    numInodes = tempValues[2];
+
+    char sizeOfBitmap = ceil(numBlocks / 8);           // Size of the Bitmap (-1 because of root)
+    int sizeOfInodeVector = numInodes * sizeof(INODE); // Size of the Inode Vector (-1 because of root)
+    int sizeOfBlockVector = numBlocks * blockSize;     // Size of the Block Vector
+
+    int sizeOfFileSystem = sizeOfBitmap + sizeOfInodeVector + 1 + sizeOfBlockVector;
+
+    char fileSystem[sizeOfFileSystem];
+
+    fread(&fileSystem, sizeOfChar, sizeOfFileSystem, file);
+
+    int goTo = 3 + sizeOfBitmap + 22;
+
+    fseek(file, goTo, SEEK_SET);
+
+    int i = 0;
+    printf("filePath:\n\"");
+    char aqui[10];
+    while (i < strlen(filePath.c_str()))
+    {
+        aqui[i] = filePath.at(i);
+        printf("%c", filePath.at(i));
+        i++;
+    }
+
+    const char *fileName = filePath.c_str();
+
+    // INODE inode = {
+    //     0x01,               // 0x01 if used, 0x00 if free
+    //     0x00,               // 0x01 if directory, 0x00 if file
+    //    { &aqui},                // Name of file/directory
+    //     0x00,               // Size of file/directory in bytes
+    //     {0x00, 0x00, 0x00}, // Direct blocks
+    //     {0x00, 0x00, 0x00}, // Indirect blocks
+    //     {0x00, 0x00, 0x00}, // Double indirect blocks
+    // };
+
+    // free(fileName);
+
+    fwrite(&aqui, sizeOfChar, 10, file);
+
+    printf("\n----------------------\n----------------------\nTamanho do bloco: %u\nNumero de blocos: %u\nNumero de inodes: %u\n----------------------\n----------------------\n", blockSize, numBlocks, numInodes);
+    printf("\nArquivo de sistema (%d):\n", sizeof(fileSystem));
+    for (size_t i = 0; i < sizeof(fileSystem); i++)
+    {
+        // if (fileSystem[i] == '/')
+        // {
+        //     printf("/ ");
+        // }
+        // else
+        printf("%x ", fileSystem[i]);
+    }
+    printf("\n-------------------");
+
+    // printf("\"\n");
+
+    // i = 0;
+    // printf("fileContent:\n\"");
+    // while (i < strlen(fileContent.c_str()))
+    // {
+    //     printf("%c", fileContent.at(i));
+    //     i++;
+    // }
+    // printf("\"\n");
+
+    // i = 0;
+    // printf("fsFileName:\n\"");
+    // while (i < strlen(fsFileName.c_str()))
+    // {
+    //     printf("%c", fsFileName.at(i));
+    //     i++;
+    // }
+    // printf("\"\n");
+    ///////////////
+
+    // char teste[3];
+    //  int inteiro =   fread(&teste, sizeof(char), 3,file);
+    // printf("\n--------------\n.......\n%s\n%d\n.......\n-------------\n",teste, inteiro);
+
+    // for (size_t i = 0; i < 3; i++)
+    // {
+    //     printf("| %d  -  %u |\n",teste[i],teste[i]);
+    // }
+
+    //     /////////////
+
+    fclose(file);
 }
 
 /**
