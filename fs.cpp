@@ -77,92 +77,70 @@ void addFile(std::string fsFileName, std::string filePath, std::string fileConte
     numBlocks = tempValues[1];
     numInodes = tempValues[2];
 
-    char sizeOfBitmap = ceil(numBlocks / 8);           // Size of the Bitmap (-1 because of root)
+    char sizeOfBitmap = ceil(numBlocks / 8.0);         // Size of the Bitmap (-1 because of root)
     int sizeOfInodeVector = numInodes * sizeof(INODE); // Size of the Inode Vector (-1 because of root)
     int sizeOfBlockVector = numBlocks * blockSize;     // Size of the Block Vector
 
-    int sizeOfFileSystem = sizeOfBitmap + sizeOfInodeVector + 1 + sizeOfBlockVector;
+    char fileName[10]; // File path name (skip "/")
+    for (size_t i = 0; i < strlen(filePath.c_str()); i++)
+    {
+        if ((i + 1) < strlen(filePath.c_str()))
+            fileName[i] = filePath.at(i + 1);
+        else
+            fileName[i] = 0;
+    }
 
-    char fileSystem[sizeOfFileSystem];
-
-    fread(&fileSystem, sizeOfChar, sizeOfFileSystem, file);
-
-    int goTo = 3 + sizeOfBitmap + 22;
+    char setFileInodeUsed[2] = {0x01, 0x00}; // Set the inode of file as file and used
+    int goTo = 3 + sizeOfBitmap + 22;        // Reference to use with fseek
 
     fseek(file, goTo, SEEK_SET);
+    fwrite(&setFileInodeUsed, sizeOfChar, 2, file); // Add flag as used and as file
+    fwrite(&fileName, sizeOfChar, 10, file);        // Add the file name
 
-    int i = 0;
-    printf("filePath:\n\"");
-    char aqui[10];
-    while (i < strlen(filePath.c_str()))
+    int sizeOfContent = strlen(fileContent.c_str());
+    fwrite(&sizeOfContent, sizeOfChar, 1, file); // Add the size of the content in the file
+
+    char numberOfBlocks = ceil(sizeOfContent / (double)blockSize);
+    for (size_t i = 1; i <= numberOfBlocks; i++)
     {
-        aqui[i] = filePath.at(i);
-        printf("%c", filePath.at(i));
-        i++;
+        fwrite(&i, sizeOfChar, 1, file); // Add blocks id in file starting in 1;
     }
 
-    const char *fileName = filePath.c_str();
-
-    // INODE inode = {
-    //     0x01,               // 0x01 if used, 0x00 if free
-    //     0x00,               // 0x01 if directory, 0x00 if file
-    //    { &aqui},                // Name of file/directory
-    //     0x00,               // Size of file/directory in bytes
-    //     {0x00, 0x00, 0x00}, // Direct blocks
-    //     {0x00, 0x00, 0x00}, // Indirect blocks
-    //     {0x00, 0x00, 0x00}, // Double indirect blocks
-    // };
-
-    // free(fileName);
-
-    fwrite(&aqui, sizeOfChar, 10, file);
-
-    printf("\n----------------------\n----------------------\nTamanho do bloco: %u\nNumero de blocos: %u\nNumero de inodes: %u\n----------------------\n----------------------\n", blockSize, numBlocks, numInodes);
-    printf("\nArquivo de sistema (%d):\n", sizeof(fileSystem));
-    for (size_t i = 0; i < sizeof(fileSystem); i++)
+    char contentOfFile[strlen(fileContent.c_str())];
+    for (size_t i = 0; i < strlen(fileContent.c_str()); i++)
     {
-        // if (fileSystem[i] == '/')
-        // {
-        //     printf("/ ");
-        // }
-        // else
-        printf("%x ", fileSystem[i]);
+        contentOfFile[i] = fileContent.at(i);
     }
-    printf("\n-------------------");
+    char directoryBlock[] = {1, 0};
+    goTo = 3 + sizeOfBitmap + sizeOfInodeVector + 1;
+    fseek(file, goTo, SEEK_SET);
+    fwrite(&directoryBlock, sizeOfChar, 2, file);                          // Add 01 and 00 because of block used by directory
+    fwrite(&contentOfFile, sizeOfChar, strlen(fileContent.c_str()), file); // Add the file content in the blocks;
 
-    // printf("\"\n");
+    int numberOfChildren = 1;
+    goTo = 3 + sizeOfBitmap + 12;
+    fseek(file, goTo, SEEK_SET);
+    fwrite(&numberOfChildren, sizeOfChar, 1, file); // Add how many children the directory has
 
-    // i = 0;
-    // printf("fileContent:\n\"");
-    // while (i < strlen(fileContent.c_str()))
-    // {
-    //     printf("%c", fileContent.at(i));
-    //     i++;
-    // }
-    // printf("\"\n");
+    char blockValues[sizeOfBlockVector];
+    goTo = 3 + sizeOfBitmap + sizeOfInodeVector + 1;
+    fseek(file, goTo, SEEK_SET);
+    fread(&blockValues, sizeOfChar, sizeof(blockValues), file); // Read the block vector value
 
-    // i = 0;
-    // printf("fsFileName:\n\"");
-    // while (i < strlen(fsFileName.c_str()))
-    // {
-    //     printf("%c", fsFileName.at(i));
-    //     i++;
-    // }
-    // printf("\"\n");
-    ///////////////
+    int counterOfFilled = 0;
+    int valueToHex = 0; // Value of filled blocks in binary to dacimal
+    for (size_t i = 0; i < sizeof(blockValues); i += 2)
+    {
+        if (blockValues[i] != 0)
+        {
+            valueToHex += pow(2, counterOfFilled);
+            counterOfFilled++;
+        }
+    }
+    fseek(file, 3, SEEK_SET);
+    fwrite(&valueToHex, sizeOfChar, 1, file); // Add the number of block filled
 
-    // char teste[3];
-    //  int inteiro =   fread(&teste, sizeof(char), 3,file);
-    // printf("\n--------------\n.......\n%s\n%d\n.......\n-------------\n",teste, inteiro);
-
-    // for (size_t i = 0; i < 3; i++)
-    // {
-    //     printf("| %d  -  %u |\n",teste[i],teste[i]);
-    // }
-
-    //     /////////////
-
-    fclose(file);
+    fclose(file); // Close file
 }
 
 /**
