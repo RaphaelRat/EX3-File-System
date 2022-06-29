@@ -12,8 +12,13 @@
  */
 
 #include "fs.h"
+#include "math.h"
 #include <string.h>
-#include <math.h>
+#include <bitset>
+#include <cassert>
+#include <iostream>
+#include <vector>
+#include <sstream>
 
 void initFs(std::string fsFileName, int blockSize, int numBlocks, int numInodes)
 {
@@ -24,8 +29,8 @@ void initFs(std::string fsFileName, int blockSize, int numBlocks, int numInodes)
     fwrite(&numBlocks, sizeOfChar, 1, file); // Byte 2 - Number of blocks
     fwrite(&numInodes, sizeOfChar, 1, file); // Byte 3 - Number of Inodes
 
-    char firstByteOfMap = 0x01;                   // First block is used by root
-    fwrite(&firstByteOfMap, sizeOfChar, 1, file); // Byte 4 - Define block 0 as used because of root (first bit of Bitmap)
+    char bitMap = 0x01;                   // First block is used by root
+    fwrite(&bitMap, sizeOfChar, 1, file); // Byte 4 - Define block 0 as used because of root (first bit of Bitmap)
 
     char sizeOfBitmap = (numBlocks - 1) / 8;                 // Size of the Bitmap (-1 because of root)
     int sizeOfInodeVector = (numInodes - 1) * sizeof(INODE); // Size of the Inode Vector (-1 because of root)
@@ -72,13 +77,13 @@ void addFile(std::string fsFileName, std::string filePath, std::string fileConte
     char blockSize, numBlocks, numInodes, tempValues[3];
     size_t sizeOfChar = sizeof(char); // Size of a char
 
-    fread(&tempValues, sizeOfChar, 3, file);
+    fread(&tempValues, sizeOfChar, 3, file); // Read block size, number of blocks and number of inodes
     blockSize = tempValues[0];
     numBlocks = tempValues[1];
     numInodes = tempValues[2];
 
-    char sizeOfBitmap = ceil(numBlocks / 8.0);         // Size of the Bitmap (-1 because of root)
-    int sizeOfInodeVector = numInodes * sizeof(INODE); // Size of the Inode Vector (-1 because of root)
+    char sizeOfBitmap = ceil(numBlocks / 8.0);         // Size of the Bitmap
+    int sizeOfInodeVector = numInodes * sizeof(INODE); // Size of the Inode Vector
     int sizeOfBlockVector = numBlocks * blockSize;     // Size of the Block Vector
 
     char fileName[10]; // File path name (skip "/")
@@ -129,7 +134,7 @@ void addFile(std::string fsFileName, std::string filePath, std::string fileConte
 
     int counterOfFilled = 0;
     int valueToHex = 0; // Value of filled blocks in binary to dacimal
-    for (size_t i = 0; i < sizeof(blockValues); i += 2)
+    for (size_t i = 0; i < sizeof(blockValues); i += blockSize)
     {
         if (blockValues[i] != 0)
         {
@@ -150,6 +155,107 @@ void addFile(std::string fsFileName, std::string filePath, std::string fileConte
  */
 void addDir(std::string fsFileName, std::string dirPath)
 {
+    FILE *file = fopen(fsFileName.c_str(), "r+");
+
+    char tempValues[3];
+    int blockSize, numBlocks, numInodes;
+    size_t sizeOfChar = sizeof(char); // Size of a char
+
+    fread(&tempValues, sizeOfChar, 3, file); // Read block size, number, blocks and number of inodes and bitmap
+    blockSize = tempValues[0];
+    numBlocks = tempValues[1];
+    numInodes = tempValues[2];
+
+    int sizeOfInodeVector = numInodes * sizeof(INODE); // Size of the Inode Vector (-1 because of root)
+    int sizeOfBlockVector = numBlocks * blockSize;     // Size of the Block Vector
+    char sizeOfBitmap = ceil((numBlocks - 1) / 8.0);   // Size of the Bitmap (-1 because of root)
+
+    char blockValues[sizeOfBlockVector];
+    int goTo = 3 + sizeOfBitmap + sizeOfInodeVector + 1;
+    fseek(file, goTo, SEEK_SET);
+    fread(&blockValues, sizeOfChar, sizeof(blockValues), file); // Read the block vector value
+
+    int freeBlockIndex; // Index of a free block
+    for (size_t i = 0; i < sizeof(blockValues); i += blockSize)
+    {
+        if (blockValues[i] == 0)
+        {
+            freeBlockIndex = i / 2;
+            break;
+        }
+    }
+
+    INODE inode;
+    int freeInodeIndex; // Index of a free inode
+    goTo = 3 + sizeOfBitmap;
+    fseek(file, goTo, SEEK_SET);
+    for (int i = 0; i < numInodes; i++)
+    {
+        fread(&inode, sizeof(INODE), 1, file); // Read inode to find an empty one
+
+        if (inode.IS_USED == 0)
+        {
+            freeInodeIndex = i;
+            break;
+        }
+    }
+
+    char dirName[10]; // Directory path name (skip "/")
+    for (size_t i = 0; i < sizeof(dirName); i++)
+    {
+        if (i + 1 < strlen(dirPath.c_str()) && i + 1 < strlen(dirPath.c_str()))
+            dirName[i] = dirPath.at(i + 1);
+        else
+            dirName[i] = 0;
+    }
+
+    goTo = 3 + sizeOfBitmap + freeInodeIndex * sizeof(INODE);
+    char setDirectory[] = {0x01, 0x01};
+    fseek(file, goTo, SEEK_SET);
+    fwrite(&setDirectory, sizeOfChar, 2, file); // Set as directory
+    fwrite(&dirName, sizeOfChar, 10, file);     // Set the name of directory
+    fseek(file, 1, SEEK_CUR);
+    fwrite(&freeBlockIndex, sizeOfChar, 1, file); // Set the index of block
+
+    int numberOfBlocks = 1;
+    goTo = 3 + sizeOfBitmap;
+    fseek(file, goTo, SEEK_SET);
+    int numberOfInodesFilled = -1;
+    for (int i = 0; i < numInodes; i++)
+    {
+        fread(&inode, sizeof(INODE), 1, file); // Read inode to find how much blocks there are
+        if (inode.IS_USED == 1)
+        {
+            numberOfInodesFilled++;
+
+            if (inode.DIRECT_BLOCKS[0] > 0)
+                numberOfBlocks++;
+            if (inode.DIRECT_BLOCKS[1] > 0)
+                numberOfBlocks++;
+            if (inode.DIRECT_BLOCKS[2] > 0)
+                numberOfBlocks++;
+        }
+    }
+
+    int bitMap = 0;
+    for (size_t i = 0; i < numberOfBlocks; i++)
+    {
+        bitMap += pow(2, i);
+    }
+
+    fseek(file, 3, SEEK_SET);
+    fwrite(&bitMap, sizeOfChar, 1, file); // Add the bitmap
+
+    goTo = 3 + sizeOfBitmap + 12;
+    fseek(file, goTo, SEEK_SET);
+    fwrite(&numberOfInodesFilled, sizeOfChar, 1, file); // Add the number of inodes in directory
+
+    int valueInRootBlock = 2;
+    goTo = 3 + sizeOfBitmap + sizeOfInodeVector + 2;
+    fseek(file, goTo, SEEK_SET);
+    fwrite(&valueInRootBlock, sizeOfChar, 1, file); // Add the number of inodes in directory block
+
+    fclose(file);
 }
 
 /**
