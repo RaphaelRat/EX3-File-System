@@ -556,4 +556,340 @@ void remove(std::string fsFileName, std::string path)
 
 void move(std::string fsFileName, std::string oldPath, std::string newPath)
 {
+
+    FILE *file = fopen(fsFileName.c_str(), "r+");
+
+    char blockSize, numBlocks, numInodes, tempValues[3];
+    size_t sizeOfChar = sizeof(char); // Size of a char
+
+    fread(&tempValues, sizeOfChar, 3, file); // Read block size, number of blocks and number of inodes
+    blockSize = tempValues[0];
+    numBlocks = tempValues[1];
+    numInodes = tempValues[2];
+
+    char sizeOfBitmap = ceil(numBlocks / 8.0);         // Size of the Bitmap
+    int sizeOfInodeVector = numInodes * sizeof(INODE); // Size of the Inode Vector
+    int sizeOfBlockVector = numBlocks * blockSize;     // Size of the Block Vector
+
+    // Names of old path and directory
+    int directoriesCounter = 0, slashIndex = 0; // Number of directories and index of /
+    char directoryName[10], pathName[10];       // Name of the path and directory
+
+    for (size_t i = 0; i < strlen(oldPath.c_str()); i++)
+    {
+        if (oldPath.at(i) == '/')
+        {
+            directoriesCounter++;
+            slashIndex = i;
+        }
+    }
+
+    bool blockDirectoryName = false, blockPathName = false;
+    for (size_t i = 0; i < sizeof(pathName); i++)
+    {
+        if (directoriesCounter == 1)
+        {
+            if ((i + 1) < strlen(oldPath.c_str()))
+                pathName[i] = oldPath.at(i + 1);
+            else
+                pathName[i] = 0;
+
+            if ((i + 1) < strlen(oldPath.c_str()) && oldPath.at(i) == '/')
+                directoryName[i] = '/';
+            else
+                directoryName[i] = 0;
+        }
+
+        else
+        {
+            if ((i + 1) < strlen(oldPath.c_str()) && oldPath.at(i + 1) != '/' && !blockDirectoryName)
+                directoryName[i] = oldPath.at(i + 1);
+            else
+            {
+                directoryName[i] = 0;
+                blockDirectoryName = true;
+            }
+
+            if ((slashIndex + 1) < strlen(oldPath.c_str()) && oldPath.at(slashIndex + 1) != '/' && !blockPathName)
+                pathName[i] = oldPath.at(slashIndex + 1);
+            else
+            {
+                pathName[i] = 0;
+                blockPathName = true;
+            }
+            slashIndex++;
+        }
+    }
+
+    // Names of new path and directory
+    directoriesCounter = 0;
+    slashIndex = 0;                             // Number of directories and index of /
+    char newDirectoryName[10], newPathName[10]; // Name of the path and directory
+
+    for (size_t i = 0; i < strlen(newPath.c_str()); i++)
+    {
+        if (newPath.at(i) == '/')
+        {
+            directoriesCounter++;
+            slashIndex = i;
+        }
+    }
+
+    bool blocknewDirectoryName = false, blocknewPathName = false; // Booleans to block saving names to previne get trash
+    for (size_t i = 0; i < sizeof(newPathName); i++)
+    {
+        if (directoriesCounter == 1)
+        {
+            if ((i + 1) < strlen(newPath.c_str()))
+                newPathName[i] = newPath.at(i + 1);
+            else
+                newPathName[i] = 0;
+
+            if ((i + 1) < strlen(newPath.c_str()) && newPath.at(i) == '/')
+                newDirectoryName[i] = '/';
+            else
+                newDirectoryName[i] = 0;
+        }
+
+        else
+        {
+            if ((i + 1) < strlen(newPath.c_str()) && newPath.at(i + 1) != '/' && !blocknewDirectoryName)
+                newDirectoryName[i] = newPath.at(i + 1);
+            else
+            {
+                newDirectoryName[i] = 0;
+                blocknewDirectoryName = true;
+            }
+
+            if ((slashIndex + 1) < strlen(newPath.c_str()) && newPath.at(slashIndex + 1) != '/' && !blocknewPathName)
+                newPathName[i] = newPath.at(slashIndex + 1);
+            else
+            {
+                newPathName[i] = 0;
+                blocknewPathName = true;
+            }
+            slashIndex++;
+        }
+    }
+
+    // Find new and old directories and path index
+    INODE inode;                 // Inode to read inodes from file
+    int goTo = 3 + sizeOfBitmap; // Index to use with fseek
+    fseek(file, goTo, SEEK_SET);
+    int indexOfPath = 0, indexOfOldDirectory = 0, indexOfNewDirectory = 0;
+    for (int i = 0; i < numInodes; i++)
+    {
+        fread(&inode, sizeof(INODE), 1, file); // Read inode to delete it
+
+        if (!strcmp(inode.NAME, pathName))
+            indexOfPath = i;
+
+        if (!strcmp(inode.NAME, directoryName))
+            indexOfOldDirectory = i;
+
+        if (!strcmp(inode.NAME, newDirectoryName))
+            indexOfNewDirectory = i;
+    }
+
+    // If it's just a rename method, rename it, or else really move
+    if (strcmp(pathName, newPathName))
+    {
+        int goTo = 3 + sizeOfBitmap + indexOfPath * sizeof(INODE) + 2;
+        fseek(file, goTo, SEEK_SET);
+        for (size_t i = 0; i < sizeof(newPathName); i++)
+        {
+            char newName = newPathName[i];
+            fwrite(&newName, sizeOfChar, 1, file);
+        }
+    }
+    else
+    {
+        // Decrease old direcoty size
+        char sizeOfDirectory = 0;
+        goTo = 3 + sizeOfBitmap + indexOfOldDirectory * sizeof(INODE) + 12;
+        fseek(file, goTo, SEEK_SET);
+        fread(&sizeOfDirectory, sizeOfChar, 1, file); // Read the currenty size of the directory
+        sizeOfDirectory--;
+        fseek(file, -1, SEEK_CUR);
+        fwrite(&sizeOfDirectory, sizeOfChar, 1, file); // Decrease the directory size
+
+        // Update blocks of removed inode directory
+        goTo = 3 + sizeOfBitmap + indexOfOldDirectory * sizeof(INODE);
+        INODE inodeToRemoveBlock;
+        fseek(file, goTo, SEEK_SET);
+        fread(&inodeToRemoveBlock, sizeof(INODE), 1, file);
+        int usedBlocks = 0;
+        for (size_t i = 0; i < sizeof(inodeToRemoveBlock.DIRECT_BLOCKS); i++)
+        {
+            if (inodeToRemoveBlock.DIRECT_BLOCKS[i] != 0)
+            {
+                usedBlocks++;
+            }
+        }
+        if (inodeToRemoveBlock.NAME[0] == '/')
+        {
+            usedBlocks++;
+        }
+
+        char listOfValuesOfBlock[usedBlocks * blockSize]; // An array of char to manipulate the old directory's block(s)
+        for (size_t i = 0; i < sizeof(listOfValuesOfBlock); i++)
+        {
+            listOfValuesOfBlock[i] = 0;
+        }
+
+        int increaseIndex = 0; // An index to manipulate the listOfValuesOfBlock
+        for (size_t i = 0; i < usedBlocks; i++)
+        {
+            char tempValues[blockSize];
+            goTo = 3 + sizeOfBitmap + sizeOfInodeVector + 1 + inodeToRemoveBlock.DIRECT_BLOCKS[i] * blockSize;
+            fseek(file, goTo, SEEK_SET);
+            fread(&tempValues, blockSize, 1, file);
+
+            for (size_t j = 0; j < blockSize; j++)
+            {
+                listOfValuesOfBlock[j + increaseIndex] = tempValues[j];
+            }
+            increaseIndex = blockSize;
+        }
+
+        for (size_t i = 0; i < sizeof(listOfValuesOfBlock); i++)
+        {
+            if (i + 1 < sizeof(listOfValuesOfBlock) && listOfValuesOfBlock[i + 1] != 0)
+            {
+                if (listOfValuesOfBlock[i] == indexOfPath)
+                    listOfValuesOfBlock[i] = listOfValuesOfBlock[i + 1];
+
+                if (i != 0)
+                    if (listOfValuesOfBlock[i] == listOfValuesOfBlock[i - 1])
+                        listOfValuesOfBlock[i] = listOfValuesOfBlock[i + 1];
+            }
+        }
+
+        increaseIndex = 0;
+        for (size_t i = 0; i < usedBlocks; i++)
+        {
+            goTo = 3 + sizeOfBitmap + sizeOfInodeVector + 1 + inodeToRemoveBlock.DIRECT_BLOCKS[i] * blockSize;
+            fseek(file, goTo, SEEK_SET);
+
+            for (size_t j = 0; j < blockSize; j++)
+            {
+                char tempValue = listOfValuesOfBlock[j + increaseIndex];
+                fwrite(&tempValue, sizeOfChar, 1, file); // Update the value of old directory block
+            }
+            increaseIndex = blockSize;
+        }
+
+        // Update Inode blocks if necessary
+        if (usedBlocks * 2 > sizeOfDirectory)
+        {
+            for (size_t i = sizeOfDirectory - 1; i < sizeof(inodeToRemoveBlock.DIRECT_BLOCKS); i++)
+            {
+                inodeToRemoveBlock.DIRECT_BLOCKS[i] = 0;
+            }
+            goTo = 3 + sizeOfBitmap + indexOfOldDirectory * sizeof(INODE);
+            fseek(file, goTo, SEEK_SET);
+            fwrite(&inodeToRemoveBlock, sizeof(INODE), 1, file); // Remove unnecessary block(s)
+        }
+
+        // Increase the new directory size
+        sizeOfDirectory = 0;
+        goTo = 3 + sizeOfBitmap + indexOfNewDirectory * sizeof(INODE) + 12;
+        fseek(file, goTo, SEEK_SET);
+        fread(&sizeOfDirectory, sizeOfChar, 1, file);
+        sizeOfDirectory++;
+        fseek(file, -1, SEEK_CUR);
+        fwrite(&sizeOfDirectory, sizeOfChar, 1, file); // Increase the new directory size
+
+        // Find a free block to save the content of file
+        goTo = 3 + sizeOfBitmap + indexOfNewDirectory * sizeof(INODE);
+        INODE newInode;
+        fseek(file, goTo, SEEK_SET);
+        fread(&newInode, sizeof(INODE), 1, file);
+        int lastBlockUsed = 0;
+        for (size_t i = 0; i < sizeof(newInode.DIRECT_BLOCKS); i++)
+        {
+            if (newInode.DIRECT_BLOCKS[i] != 0 && indexOfPath != newInode.DIRECT_BLOCKS[i])
+                lastBlockUsed = i;
+        }
+        int tempSize = sizeOfDirectory - 1;
+        while (tempSize > blockSize)
+        {
+            tempSize -= blockSize;
+        }
+        int indexOfDirectoryBlock = newInode.DIRECT_BLOCKS[lastBlockUsed] * 2 + tempSize;
+
+        // Veryfi the necessity of increase the size of the new directory block and add this block
+        if (sizeOfDirectory > blockSize)
+        {
+            char freeBlockIndex = 0; // Index of a free block
+            goTo = 3 + sizeOfBitmap;
+            fseek(file, goTo, SEEK_SET);
+            for (int i = 0; i < numInodes; i++)
+            {
+                fread(&inode, sizeof(INODE), 1, file); // Read inode to count blocks
+
+                for (size_t j = 0; j < sizeof(inode.DIRECT_BLOCKS); j++)
+                {
+                    if (inode.DIRECT_BLOCKS[j] > freeBlockIndex)
+                    {
+                        freeBlockIndex = inode.DIRECT_BLOCKS[j];
+                    }
+                }
+            }
+            freeBlockIndex++;
+
+            indexOfDirectoryBlock = freeBlockIndex * 2;
+
+            goTo = 3 + sizeOfBitmap + indexOfNewDirectory * sizeof(INODE);
+            fseek(file, goTo, SEEK_SET);
+            fread(&newInode, sizeof(INODE), 1, file);
+            for (size_t i = 1; i < sizeof(newInode.DIRECT_BLOCKS); i++)
+            {
+                if (newInode.DIRECT_BLOCKS[i] == 0)
+                {
+                    newInode.DIRECT_BLOCKS[i] = freeBlockIndex;
+                    break;
+                }
+            }
+            fseek(file, goTo, SEEK_SET);
+            fwrite(&newInode, sizeof(INODE), 1, file);
+        }
+
+        goTo = 3 + sizeOfBitmap + sizeOfInodeVector + 1 + indexOfDirectoryBlock;
+        fseek(file, goTo, SEEK_SET);
+        fwrite(&indexOfPath, sizeOfChar, 1, file); // Add the index of inode file to the directory block
+
+        // Update the bitmap
+        char bitMapValue[numBlocks]; // Array of char to manipulate the bitmap
+        for (size_t i = 0; i < sizeof(bitMapValue); i++)
+        {
+            if (i == 0)
+                bitMapValue[i] = 1; // Starts with 1 because of root directory
+            else
+                bitMapValue[i] = 0;
+        }
+        goTo = 3 + sizeOfBitmap;
+        fseek(file, goTo, SEEK_SET);
+        for (int i = 0; i < numInodes; i++)
+        {
+            fread(&newInode, sizeof(INODE), 1, file); // Read inode to count blocks
+
+            for (size_t j = 0; j < sizeof(newInode.DIRECT_BLOCKS); j++)
+            {
+                if (newInode.DIRECT_BLOCKS[j] != 0)
+                    bitMapValue[newInode.DIRECT_BLOCKS[j]] = 1;
+            }
+        }
+
+        int valueToHex = 0; // Value of filled blocks in binary to dacimal
+        for (size_t i = 0; i < sizeof(bitMapValue); i++)
+        {
+            if (bitMapValue[i] != 0)
+                valueToHex += pow(2, i);
+        }
+
+        fseek(file, 3, SEEK_SET);
+        fwrite(&valueToHex, sizeOfChar, 1, file); // Add the number of block filled (bitmap)
+    }
+    fclose(file);
 }
