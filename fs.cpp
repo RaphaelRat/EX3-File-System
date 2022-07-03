@@ -14,11 +14,6 @@
 #include "fs.h"
 #include "math.h"
 #include <string.h>
-#include <bitset>
-#include <cassert>
-#include <iostream>
-#include <vector>
-#include <sstream>
 
 void initFs(std::string fsFileName, int blockSize, int numBlocks, int numInodes)
 {
