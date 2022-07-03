@@ -1,7 +1,14 @@
 # Sistema-Arquivos-EX3
-Trabalho final para disciplina Organização de Sistemas Operacionais do curso de Engenharia de Computação da Universidade Federal de Santa Catarina (UFSC).
 
-Para compilar: g++ -std=c++17 fs.cpp main.cpp sha256.cpp -o teste -lgtest -lcrypto -lpthread
+Completion work of the discipline of Organization of Operating Systems of the Computer Engineering course at the Federal University of Santa Catarina (UFSC - Universidade Federal de Santa Catarina). The main goal was for the code to pass 100% of the tests without any kind of crash or memory leak, but that doesn't mean that this is 100% correct or that it should pass other tests.
+
+## To execute:
+
+g++ -std=c++17 fs.cpp main.cpp sha256.cpp -o test -lgtest -lcrypto -lpthread
+
+test.exe
+
+## Tips
 
 ### How to use fopen:
 
