@@ -1,6 +1,13 @@
-# Sistema-Arquivos-EX3
+# EX3 FILE SYSTEM
 
 Completion work of the discipline of Organization of Operating Systems of the Computer Engineering course at the Federal University of Santa Catarina (UFSC - Universidade Federal de Santa Catarina). The main goal was for the code to pass 100% of the tests without any kind of crash or memory leak, but that doesn't mean that this is 100% correct or that it should pass other tests.
+
+The EX3 File System is a journaled file system that is commonly used by the Linux kernel.
+
+We can see below an example about this file system, where we have the first 3 bytes to define the size of a block, the number of blocks and the number of inodes. Then we have the bitmap, which has no specific size, as it depends on the number of blocks used. After that we have the INODES vector and the next byte is the INODE root index. At the end we have the vector of blocks.
+
+![EX3 example](https://user-images.githubusercontent.com/89277770/177371213-d3d44b4b-5d40-4037-af85-2a4f804460a1.png)
+
 
 ## To execute:
 
