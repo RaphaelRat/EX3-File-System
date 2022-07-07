@@ -8,6 +8,8 @@ We can see below an example about this file system, where we have the first 3 by
 
 ![EX3 example](https://user-images.githubusercontent.com/89277770/177371213-d3d44b4b-5d40-4037-af85-2a4f804460a1.png)
 
+Site to open your binary files to understand better: https://hexed.it/
+
 
 ## To execute:
 
